@@ -1,0 +1,1160 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>臺中市交通事故統計查詢系統</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --surface: #111827;
+    --surface2: #1a2236;
+    --border: #1e3a5f;
+    --accent: #00d4ff;
+    --accent2: #ff6b35;
+    --accent3: #7c3aed;
+    --text: #e2e8f0;
+    --text-muted: #64748b;
+    --danger: #ef4444;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --font-main: 'Noto Sans TC', sans-serif;
+    --font-mono: 'Space Mono', monospace;
+    --radius: 12px;
+    --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font-main);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Background grid effect ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0, 212, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 212, 255, 0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── Header ── */
+  header {
+    position: relative;
+    z-index: 10;
+    padding: 2rem 2rem 0;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(0,212,255,0.05) 0%, transparent 100%);
+  }
+  .header-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    align-items: flex-end;
+    gap: 2rem;
+    padding-bottom: 1.5rem;
+  }
+  .logo-block { flex: 1; }
+  .logo-tag {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--accent);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 0.5rem;
+  }
+  h1 {
+    font-size: clamp(1.4rem, 3vw, 2.2rem);
+    font-weight: 900;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    color: #fff;
+  }
+  h1 span { color: var(--accent); }
+  .header-controls { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+
+  /* ── Role Switcher ── */
+  .role-tabs {
+    display: flex;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .role-tab {
+    padding: 0.5rem 1.2rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    transition: var(--transition);
+    font-family: var(--font-main);
+  }
+  .role-tab.active {
+    background: var(--accent);
+    color: #000;
+    font-weight: 700;
+  }
+  .role-tab:hover:not(.active) { color: var(--accent); background: rgba(0,212,255,0.05); }
+
+  /* ── Year/Month selector ── */
+  .filter-group { display: flex; gap: 0.5rem; align-items: center; }
+  .filter-label { font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; }
+  select, input {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 0.4rem 0.7rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-family: var(--font-main);
+    transition: var(--transition);
+    outline: none;
+  }
+  select:focus, input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(0,212,255,0.15); }
+
+  /* ── Main layout ── */
+  .app { max-width: 1200px; margin: 0 auto; padding: 2rem; position: relative; z-index: 1; }
+
+  /* ── Nav sidebar ── */
+  .layout { display: grid; grid-template-columns: 220px 1fr; gap: 1.5rem; }
+
+  .nav-panel {
+    position: sticky;
+    top: 1rem;
+    align-self: start;
+  }
+  .nav-section-title {
+    font-size: 0.65rem;
+    font-family: var(--font-mono);
+    letter-spacing: 0.15em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    padding: 0 0.5rem 0.5rem;
+    margin-top: 1rem;
+  }
+  .nav-section-title:first-child { margin-top: 0; }
+  .nav-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    width: 100%;
+    padding: 0.6rem 0.75rem;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-family: var(--font-main);
+    font-size: 0.85rem;
+    cursor: pointer;
+    border-radius: 8px;
+    text-align: left;
+    transition: var(--transition);
+    border-left: 2px solid transparent;
+  }
+  .nav-btn:hover { background: var(--surface2); color: var(--text); border-left-color: var(--border); }
+  .nav-btn.active { background: rgba(0,212,255,0.08); color: var(--accent); border-left-color: var(--accent); font-weight: 500; }
+  .nav-btn .icon { font-size: 1rem; width: 1.2rem; text-align: center; }
+  .nav-btn.gov-only { display: none; }
+
+  /* ── Content panel ── */
+  .content-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    min-height: 400px;
+  }
+  .panel-header {
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+    background: rgba(0,212,255,0.03);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .panel-title { font-size: 1rem; font-weight: 700; color: #fff; }
+  .panel-subtitle { font-size: 0.8rem; color: var(--text-muted); }
+  .panel-body { padding: 1.5rem; }
+
+  /* ── Query form ── */
+  .query-form { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+  .query-input { flex: 1; min-width: 200px; }
+  .btn {
+    padding: 0.55rem 1.2rem;
+    border-radius: 7px;
+    border: none;
+    font-family: var(--font-main);
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .btn-primary { background: var(--accent); color: #000; }
+  .btn-primary:hover { background: #33ddff; transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,212,255,0.3); }
+  .btn-primary:active { transform: translateY(0); }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ── Chart containers ── */
+  .chart-wrap {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+    margin-bottom: 1.25rem;
+  }
+  .chart-title {
+    font-size: 0.8rem;
+    font-family: var(--font-mono);
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 1rem;
+  }
+  .chart-canvas-wrap { position: relative; height: 300px; }
+
+  /* ── Table ── */
+  .data-table-wrap { overflow-x: auto; border-radius: 8px; border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+  th {
+    background: var(--surface2);
+    padding: 0.7rem 1rem;
+    text-align: left;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    white-space: nowrap;
+    border-bottom: 1px solid var(--border);
+  }
+  td { padding: 0.6rem 1rem; border-bottom: 1px solid rgba(30,58,95,0.4); }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(0,212,255,0.03); }
+  .rank-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    font-size: 0.75rem;
+    font-weight: 700;
+    background: var(--surface2);
+    color: var(--text-muted);
+  }
+  .rank-1 { background: #f59e0b22; color: #f59e0b; }
+  .rank-2 { background: #94a3b822; color: #94a3b8; }
+  .rank-3 { background: #b45309aa; color: #fbbf24; }
+
+  /* ── Search result card ── */
+  .result-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .result-card-header {
+    padding: 1rem 1.25rem;
+    background: rgba(0,212,255,0.06);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .result-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 0;
+  }
+  .result-item {
+    padding: 0.75rem 1.25rem;
+    border-bottom: 1px solid rgba(30,58,95,0.4);
+    border-right: 1px solid rgba(30,58,95,0.4);
+  }
+  .result-item:nth-child(3n) { border-right: none; }
+  .result-label { font-size: 0.7rem; color: var(--text-muted); margin-bottom: 0.2rem; font-family: var(--font-mono); }
+  .result-value { font-size: 0.9rem; color: var(--text); }
+
+  /* ── Loading / empty states ── */
+  .state-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4rem 2rem;
+    text-align: center;
+    gap: 1rem;
+  }
+  .state-icon { font-size: 3rem; opacity: 0.3; }
+  .state-text { color: var(--text-muted); font-size: 0.9rem; }
+
+  .spinner {
+    width: 36px; height: 36px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Heat map / matrix ── */
+  .matrix-wrap { overflow-x: auto; }
+  .matrix-table th { min-width: 80px; text-align: center; }
+  .matrix-cell {
+    text-align: center;
+    font-size: 0.8rem;
+    transition: var(--transition);
+    cursor: default;
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    .layout { grid-template-columns: 1fr; }
+    .nav-panel { position: static; display: flex; flex-wrap: wrap; gap: 0.3rem; }
+    .nav-section-title { display: none; }
+    .nav-btn { width: auto; font-size: 0.78rem; padding: 0.4rem 0.7rem; }
+    .header-controls { gap: 0.5rem; }
+    h1 { font-size: 1.2rem; }
+  }
+
+  /* ── Tag ── */
+  .tag {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    font-family: var(--font-mono);
+  }
+  .tag-gov { background: rgba(124,58,237,0.2); color: #a78bfa; border: 1px solid rgba(124,58,237,0.3); }
+  .tag-public { background: rgba(0,212,255,0.1); color: var(--accent); border: 1px solid rgba(0,212,255,0.2); }
+
+  /* ── Progress bar ── */
+  .progress-bar-wrap { background: var(--surface); height: 8px; border-radius: 4px; overflow: hidden; }
+  .progress-bar { height: 100%; border-radius: 4px; transition: width 0.6s ease; }
+
+  .gov-notice {
+    display: none;
+    background: rgba(124,58,237,0.08);
+    border: 1px solid rgba(124,58,237,0.25);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    font-size: 0.8rem;
+    color: #a78bfa;
+    margin-bottom: 1rem;
+    align-items: center;
+    gap: 0.5rem;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="logo-block">
+      <div class="logo-tag">🚦 Taichung City Traffic Accident System</div>
+      <h1>臺中市<span>交通事故</span>統計查詢</h1>
+    </div>
+    <div class="header-controls">
+      <div class="filter-group">
+        <span class="filter-label">民國年</span>
+        <select id="yearSelect">
+          <option value="115" selected>115年</option>
+          <option value="114">114年</option>
+          <option value="113">113年</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <span class="filter-label">月份</span>
+        <select id="monthSelect" multiple style="height:auto;min-width:90px">
+          <option value="all" selected>全年</option>
+          <option value="1">1月</option><option value="2">2月</option><option value="3">3月</option>
+          <option value="4">4月</option><option value="5">5月</option><option value="6">6月</option>
+          <option value="7">7月</option><option value="8">8月</option><option value="9">9月</option>
+          <option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
+        </select>
+      </div>
+      <div class="role-tabs">
+        <button class="role-tab active" onclick="setRole('public')">一般民眾</button>
+        <button class="role-tab" onclick="setRole('gov')">公家機關</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="app">
+  <div class="layout">
+    <!-- NAV -->
+    <nav class="nav-panel">
+      <div class="nav-section-title">查詢功能</div>
+      <button class="nav-btn active" data-view="search" onclick="switchView('search')">
+        <span class="icon">🔍</span> 查詢車禍資料
+      </button>
+      <button class="nav-btn" data-view="factors" onclick="switchView('factors')">
+        <span class="icon">📊</span> 肇事因素排行
+      </button>
+      <button class="nav-btn" data-view="district" onclick="switchView('district')">
+        <span class="icon">📍</span> 各區事故頻率
+      </button>
+      <button class="nav-btn" data-view="hourly" onclick="switchView('hourly')">
+        <span class="icon">⏰</span> 高危險時段
+      </button>
+
+      <div class="nav-section-title" id="govSectionTitle" style="display:none">公家機關專區</div>
+      <button class="nav-btn gov-only" data-view="equip-injury" onclick="switchView('equip-injury')">
+        <span class="icon">🦺</span> 裝備與傷處關聯
+      </button>
+      <button class="nav-btn gov-only" data-view="drinking-injury" onclick="switchView('drinking-injury')">
+        <span class="icon">🍺</span> 飲酒與受傷關聯
+      </button>
+      <button class="nav-btn gov-only" data-view="weather-loc" onclick="switchView('weather-loc')">
+        <span class="icon">🌦️</span> 天候與地點關聯
+      </button>
+      <button class="nav-btn gov-only" data-view="road-defect" onclick="switchView('road-defect')">
+        <span class="icon">🕳️</span> 路面缺陷肇事區域
+      </button>
+      <button class="nav-btn gov-only" data-view="time-factor" onclick="switchView('time-factor')">
+        <span class="icon">📅</span> 時間與主要肇因
+      </button>
+      <button class="nav-btn gov-only" data-view="drunk-rank" onclick="switchView('drunk-rank')">
+        <span class="icon">🏆</span> 各區酒駕排名
+      </button>
+    </nav>
+
+    <!-- CONTENT -->
+    <main class="content-panel" id="contentPanel">
+      <div id="viewSearch" class="view">
+        <div class="panel-header">
+          <span style="font-size:1.3rem">🔍</span>
+          <div>
+            <div class="panel-title">查詢車禍資料</div>
+            <div class="panel-subtitle">輸入事故序號查詢詳細事故資訊</div>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="query-form">
+            <input type="text" class="query-input" id="serialInput" placeholder="請輸入事故序號（如：1）">
+            <button class="btn btn-primary" onclick="searchAccident()">🔍 查詢</button>
+          </div>
+          <div id="searchResult">
+            <div class="state-box">
+              <div class="state-icon">📋</div>
+              <div class="state-text">輸入事故序號後點擊查詢</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="viewFactors" class="view" style="display:none">
+        <div class="panel-header">
+          <span style="font-size:1.3rem">📊</span>
+          <div>
+            <div class="panel-title">交通事故肇事因素排行</div>
+            <div class="panel-subtitle">統計各主要肇事因素次數</div>
+          </div>
+          <button class="btn btn-secondary" style="margin-left:auto" onclick="loadFactors()">↻ 重新載入</button>
+        </div>
+        <div class="panel-body">
+          <div id="factorsContent"><div class="state-box"><div class="spinner"></div><div class="state-text">載入中…</div></div></div>
+        </div>
+      </div>
+
+      <div id="viewDistrict" class="view" style="display:none">
+        <div class="panel-header">
+          <span style="font-size:1.3rem">📍</span>
+          <div>
+            <div class="panel-title">各區交通事故頻率</div>
+            <div class="panel-subtitle">臺中市各行政區事故次數排名</div>
+          </div>
+          <button class="btn btn-secondary" style="margin-left:auto" onclick="loadDistrict()">↻ 重新載入</button>
+        </div>
+        <div class="panel-body">
+          <div id="districtContent"><div class="state-box"><div class="spinner"></div><div class="state-text">載入中…</div></div></div>
+        </div>
+      </div>
+
+      <div id="viewHourly" class="view" style="display:none">
+        <div class="panel-header">
+          <span style="font-size:1.3rem">⏰</span>
+          <div>
+            <div class="panel-title">高危險時段分析</div>
+            <div class="panel-subtitle">24小時事故發生時段分佈</div>
+          </div>
+          <button class="btn btn-secondary" style="margin-left:auto" onclick="loadHourly()">↻ 重新載入</button>
+        </div>
+        <div class="panel-body">
+          <div id="hourlyContent"><div class="state-box"><div class="spinner"></div><div class="state-text">載入中…</div></div></div>
+        </div>
+      </div>
+
+      <!-- GOV ONLY VIEWS -->
+      <div id="viewEquipInjury" class="view" style="display:none">
+        <div class="panel-header">
+          <span style="font-size:1.3rem">🦺</span>
+          <div>
+            <div class="panel-title">保護裝備與主要傷處關聯</div>
+            <div class="panel-subtitle">分析不同保護裝備對應的傷處分佈</div>
+          </div>
+          <span class="tag tag-gov">公家機關</span>
+          <button class="btn btn-secondary" style="margin-left:auto" onclick="loadEquipInjury()">↻ 重新載入</button>
+        </div>
+        <div class="panel-body">
+          <div id="equipInjuryContent"><div class="state-box"><div class="spinner"></div></div></div>
+        </div>
+      </div>
+
+      <div id="viewDrinkingInjury" class="view" style="display:none">
+        <div class="panel-header">
+          <span style="font-size:1.3rem">🍺</span>
+          <div>
+            <div class="panel-title">飲酒程度與受傷程度關聯</div>
+            <div class="panel-subtitle">分析飲酒程度對受傷嚴重度的影響</div>
+          </div>
+          <span class="tag tag-gov">公家機關</span>
+          <button class="btn btn-secondary" style="margin-left:auto" onclick="loadDrinkingInjury()">↻ 重新載入</button>
+        </div>
+        <div class="panel-body">
+          <div id="drinkingInjuryContent"><div class="state-box"><div class="spinner"></div></div></div>
+        </div>
+      </div>
+
+      <div id="viewWeatherLoc" class="view" style="display:none">
+        <div class="panel-header">
+          <span style="font-size:1.3rem">🌦️</span>
+          <div>
+            <div class="panel-title">天候與事故地點關聯</div>
+            <div class="panel-subtitle">不同天氣條件下各地點類型的事故分佈</div>
+          </div>
+          <span class="tag tag-gov">公家機關</span>
+          <button class="btn btn-secondary" style="margin-left:auto" onclick="loadWeatherLoc()">↻ 重新載入</button>
+        </div>
+        <div class="panel-body">
+          <div id="weatherLocContent"><div class="state-box"><div class="spinner"></div></div></div>
+        </div>
+      </div>
+
+      <div id="viewRoadDefect" class="view" style="display:none">
+        <div class="panel-header">
+          <span style="font-size:1.3rem">🕳️</span>
+          <div>
+            <div class="panel-title">路面缺陷肇事區域分析</div>
+            <div class="panel-subtitle">統計各區因路面問題造成事故的次數</div>
+          </div>
+          <span class="tag tag-gov">公家機關</span>
+          <button class="btn btn-secondary" style="margin-left:auto" onclick="loadRoadDefect()">↻ 重新載入</button>
+        </div>
+        <div class="panel-body">
+          <div id="roadDefectContent"><div class="state-box"><div class="spinner"></div></div></div>
+        </div>
+      </div>
+
+      <div id="viewTimeFactor" class="view" style="display:none">
+        <div class="panel-header">
+          <span style="font-size:1.3rem">📅</span>
+          <div>
+            <div class="panel-title">時段與主要肇因關聯</div>
+            <div class="panel-subtitle">各時間區段的前五大肇事原因</div>
+          </div>
+          <span class="tag tag-gov">公家機關</span>
+          <button class="btn btn-secondary" style="margin-left:auto" onclick="loadTimeFactor()">↻ 重新載入</button>
+        </div>
+        <div class="panel-body">
+          <div id="timeFactorContent"><div class="state-box"><div class="spinner"></div></div></div>
+        </div>
+      </div>
+
+      <div id="viewDrunkRank" class="view" style="display:none">
+        <div class="panel-header">
+          <span style="font-size:1.3rem">🏆</span>
+          <div>
+            <div class="panel-title">各區酒駕肇事排名</div>
+            <div class="panel-subtitle">臺中市各行政區酒駕事故次數排名</div>
+          </div>
+          <span class="tag tag-gov">公家機關</span>
+          <button class="btn btn-secondary" style="margin-left:auto" onclick="loadDrunkRank()">↻ 重新載入</button>
+        </div>
+        <div class="panel-body">
+          <div id="drunkRankContent"><div class="state-box"><div class="spinner"></div></div></div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script>
+// ─── CONFIG ───────────────────────────────────────────────────────
+// TODO: Replace with your actual Render backend URL
+const API_BASE = "http://127.0.0.1:5000";
+
+// ─── STATE ───────────────────────────────────────────────────────
+let currentRole = 'public';
+let currentView = 'search';
+const chartInstances = {};
+
+// ─── HELPERS ─────────────────────────────────────────────────────
+function getFilters() {
+  const year = document.getElementById('yearSelect').value;
+  const monthSel = document.getElementById('monthSelect');
+  const selected = [...monthSel.selectedOptions].map(o => o.value);
+  let months;
+  if (selected.includes('all') || selected.length === 0) {
+    months = '';
+  } else {
+    months = selected.join(',');
+  }
+  return { year, months };
+}
+
+function buildQS() {
+  const { year, months } = getFilters();
+  let qs = `year=${year}`;
+  if (months) qs += `&months=${months}`;
+  return qs;
+}
+
+async function apiFetch(path) {
+  const res = await fetch(`${API_BASE}${path}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+function loading(id) {
+  document.getElementById(id).innerHTML = `
+    <div class="state-box"><div class="spinner"></div><div class="state-text">資料載入中，請稍候…</div></div>`;
+}
+
+function errorState(id, msg = '載入失敗，請稍後再試') {
+  document.getElementById(id).innerHTML = `
+    <div class="state-box">
+      <div class="state-icon">⚠️</div>
+      <div class="state-text" style="color:var(--danger)">${msg}</div>
+    </div>`;
+}
+
+function destroyChart(key) {
+  if (chartInstances[key]) { chartInstances[key].destroy(); delete chartInstances[key]; }
+}
+
+const COLORS = ['#00d4ff','#ff6b35','#7c3aed','#10b981','#f59e0b','#ef4444','#ec4899','#3b82f6','#14b8a6','#8b5cf6'];
+
+// ─── ROLE SWITCH ─────────────────────────────────────────────────
+function setRole(role) {
+  currentRole = role;
+  document.querySelectorAll('.role-tab').forEach(t => t.classList.remove('active'));
+  event.target.classList.add('active');
+
+  const govBtns = document.querySelectorAll('.nav-btn.gov-only');
+  const govTitle = document.getElementById('govSectionTitle');
+  if (role === 'gov') {
+    govBtns.forEach(b => b.style.display = 'flex');
+    govTitle.style.display = 'block';
+  } else {
+    govBtns.forEach(b => b.style.display = 'none');
+    govTitle.style.display = 'none';
+    // If current view is gov-only, switch back
+    const govViews = ['equip-injury','drinking-injury','weather-loc','road-defect','time-factor','drunk-rank'];
+    if (govViews.includes(currentView)) switchView('search');
+  }
+}
+
+// ─── VIEW SWITCH ─────────────────────────────────────────────────
+function switchView(view) {
+  document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+
+  const viewMap = {
+    'search': 'viewSearch', 'factors': 'viewFactors', 'district': 'viewDistrict',
+    'hourly': 'viewHourly', 'equip-injury': 'viewEquipInjury',
+    'drinking-injury': 'viewDrinkingInjury', 'weather-loc': 'viewWeatherLoc',
+    'road-defect': 'viewRoadDefect', 'time-factor': 'viewTimeFactor', 'drunk-rank': 'viewDrunkRank'
+  };
+  const loaders = {
+    'factors': loadFactors, 'district': loadDistrict, 'hourly': loadHourly,
+    'equip-injury': loadEquipInjury, 'drinking-injury': loadDrinkingInjury,
+    'weather-loc': loadWeatherLoc, 'road-defect': loadRoadDefect,
+    'time-factor': loadTimeFactor, 'drunk-rank': loadDrunkRank
+  };
+
+  currentView = view;
+  const el = document.getElementById(viewMap[view]);
+  if (el) el.style.display = 'block';
+  document.querySelector(`[data-view="${view}"]`)?.classList.add('active');
+
+  if (loaders[view]) loaders[view]();
+}
+
+// ─── SEARCH ──────────────────────────────────────────────────────
+async function searchAccident() {
+
+  const { months } = getFilters();
+  if (!months || months.includes(',')) {
+      alert('查詢單筆事故時，請在右上角選擇「單一月份」以避免重複序號！');
+      return;
+  }
+  const serial = document.getElementById('serialInput').value.trim();
+  if (!serial) { alert('請輸入事故序號'); return; }
+  const result = document.getElementById('searchResult');
+  result.innerHTML = `<div class="state-box"><div class="spinner"></div><div class="state-text">查詢中…</div></div>`;
+  try {
+    const data = await apiFetch(`/api/search?serial=${encodeURIComponent(serial)}&${buildQS()}`);
+    if (!data.found) {
+      result.innerHTML = `<div class="state-box"><div class="state-icon">🔍</div><div class="state-text">查無此序號的事故資料</div></div>`;
+      return;
+    }
+    const d = data.data;
+    const fields = [
+      ['序號','序號'], ['年','年'], ['月','月'], ['日','日'], ['時','時'], ['分','分'],
+      ['區','區'], ['死亡數量','死亡數量'], ['受傷數量','受傷數量'], ['天候','天候'],
+      ['道路照明設備','道路照明設備'], ['道路類別','道路類別'], ['道路速限','道路速限'],
+      ['道路型態','道路型態'], ['事故位置','事故位置'], ['路面鋪裝','路面鋪裝'],
+      ['路面狀態','路面狀態'], ['路面缺陷','路面缺陷'], ['障礙物','障礙物'],
+      ['號誌種類','號誌種類'], ['事故類型及型態','事故類型'], ['肇事因素主要','主要肇因'],
+      ['受傷程度','受傷程度'], ['主要傷處','主要傷處'], ['保護裝備','保護裝備'],
+      ['飲酒情形','飲酒情形'], ['肇事逃逸','肇事逃逸'], ['GPS座標X','GPS 經度'], ['GPS座標Y','GPS 緯度']
+    ];
+    const items = fields.map(([key, label]) => {
+      const val = d[key] ?? '—';
+      return `<div class="result-item"><div class="result-label">${label}</div><div class="result-value">${val}</div></div>`;
+    }).join('');
+    result.innerHTML = `
+      <div class="result-card">
+        <div class="result-card-header">
+          <span style="color:var(--accent);font-weight:700">事故序號：${d['序號'] ?? serial}</span>
+          <span style="color:var(--text-muted);font-size:0.8rem;margin-left:auto">${d['年'] ?? ''}年${d['月'] ?? ''}月${d['日'] ?? ''}日 ${d['時'] ?? ''}:${d['分'] ?? ''}</span>
+        </div>
+        <div class="result-grid">${items}</div>
+      </div>`;
+  } catch(e) {
+    result.innerHTML = `<div class="state-box"><div class="state-icon">⚠️</div><div class="state-text" style="color:var(--danger)">查詢失敗：${e.message}</div></div>`;
+  }
+}
+
+// ─── FACTORS ──────────────────────────────────────────────────────
+async function loadFactors() {
+  loading('factorsContent');
+  try {
+    const data = await apiFetch(`/api/causing-factors?top=10&${buildQS()}`);
+    const maxVal = Math.max(...data.map(d => d.count));
+    const rows = data.map((d, i) => `
+      <tr>
+        <td><span class="rank-badge rank-${i+1}">${i+1}</span></td>
+        <td>${d.factor}</td>
+        <td style="width:200px">
+          <div style="display:flex;align-items:center;gap:0.5rem">
+            <div class="progress-bar-wrap" style="flex:1">
+              <div class="progress-bar" style="width:${(d.count/maxVal*100).toFixed(1)}%;background:${COLORS[i%10]}"></div>
+            </div>
+            <span style="font-family:var(--font-mono);font-size:0.8rem;color:var(--text-muted);min-width:40px;text-align:right">${d.count}</span>
+          </div>
+        </td>
+      </tr>`).join('');
+    document.getElementById('factorsContent').innerHTML = `
+      <div class="chart-wrap">
+        <div class="chart-title">前10大肇事因素 Bar Chart</div>
+        <div class="chart-canvas-wrap"><canvas id="factorsChart"></canvas></div>
+      </div>
+      <div class="data-table-wrap">
+        <table><thead><tr><th>#</th><th>肇事因素</th><th>次數分佈</th></tr></thead>
+        <tbody>${rows}</tbody></table>
+      </div>`;
+    destroyChart('factors');
+    chartInstances.factors = new Chart(document.getElementById('factorsChart'), {
+      type: 'bar',
+      data: {
+        labels: data.map(d => d.factor.length > 14 ? d.factor.slice(0,14)+'…' : d.factor),
+        datasets: [{ data: data.map(d => d.count), backgroundColor: COLORS, borderRadius: 4 }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#1e3a5f' } },
+          y: { ticks: { color: '#64748b' }, grid: { color: '#1e3a5f' } }
+        }
+      }
+    });
+  } catch(e) { errorState('factorsContent', `載入失敗：${e.message}`); }
+}
+
+// ─── DISTRICT ──────────────────────────────────────────────────────
+async function loadDistrict() {
+  loading('districtContent');
+  try {
+    const data = await apiFetch(`/api/district-frequency?${buildQS()}`);
+    const sorted = [...data].sort((a,b) => b.count - a.count);
+    const maxVal = sorted[0]?.count || 1;
+    const rows = sorted.map((d, i) => `
+      <tr>
+        <td><span class="rank-badge rank-${i+1}">${i+1}</span></td>
+        <td>${d.district}</td>
+        <td style="width:220px">
+          <div style="display:flex;align-items:center;gap:0.5rem">
+            <div class="progress-bar-wrap" style="flex:1">
+              <div class="progress-bar" style="width:${(d.count/maxVal*100).toFixed(1)}%;background:${COLORS[i%10]}"></div>
+            </div>
+            <span style="font-family:var(--font-mono);font-size:0.8rem;color:var(--text-muted);min-width:40px;text-align:right">${d.count}</span>
+          </div>
+        </td>
+      </tr>`).join('');
+    document.getElementById('districtContent').innerHTML = `
+      <div class="chart-wrap">
+        <div class="chart-title">各行政區事故次數</div>
+        <div class="chart-canvas-wrap"><canvas id="districtChart"></canvas></div>
+      </div>
+      <div class="data-table-wrap">
+        <table><thead><tr><th>#</th><th>行政區</th><th>事故次數</th></tr></thead>
+        <tbody>${rows}</tbody></table>
+      </div>`;
+    destroyChart('district');
+    chartInstances.district = new Chart(document.getElementById('districtChart'), {
+      type: 'doughnut',
+      data: {
+        labels: sorted.map(d => d.district),
+        datasets: [{ data: sorted.map(d => d.count), backgroundColor: COLORS.concat(COLORS), borderWidth: 0, hoverOffset: 6 }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'right', labels: { color: '#64748b', font: { size: 11 }, boxWidth: 12, padding: 8 } }
+        }
+      }
+    });
+  } catch(e) { errorState('districtContent', `載入失敗：${e.message}`); }
+}
+
+// ─── HOURLY ──────────────────────────────────────────────────────
+async function loadHourly() {
+  loading('hourlyContent');
+  try {
+    const data = await apiFetch(`/api/hourly-distribution?${buildQS()}`);
+    const sorted = [...data].sort((a,b) => a.hour - b.hour);
+    const peak = sorted.reduce((max, d) => d.count > max.count ? d : max, sorted[0]);
+    document.getElementById('hourlyContent').innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.25rem">
+        <div class="chart-wrap" style="margin:0;text-align:center">
+          <div class="chart-title">尖峰時刻</div>
+          <div style="font-size:2rem;font-weight:900;color:var(--accent2);font-family:var(--font-mono)">${peak?.hour ?? '?'}:00</div>
+          <div style="color:var(--text-muted);font-size:0.8rem">${peak?.count ?? 0} 件事故</div>
+        </div>
+        <div class="chart-wrap" style="margin:0;text-align:center">
+          <div class="chart-title">總事故數</div>
+          <div style="font-size:2rem;font-weight:900;color:var(--accent);font-family:var(--font-mono)">${sorted.reduce((s,d)=>s+d.count,0).toLocaleString()}</div>
+          <div style="color:var(--text-muted);font-size:0.8rem">筆事故記錄</div>
+        </div>
+        <div class="chart-wrap" style="margin:0;text-align:center">
+          <div class="chart-title">高危時段（6-9時）</div>
+          <div style="font-size:2rem;font-weight:900;color:var(--warning);font-family:var(--font-mono)">${sorted.filter(d=>d.hour>=6&&d.hour<9).reduce((s,d)=>s+d.count,0).toLocaleString()}</div>
+          <div style="color:var(--text-muted);font-size:0.8rem">件事故</div>
+        </div>
+      </div>
+      <div class="chart-wrap">
+        <div class="chart-title">24小時事故分佈</div>
+        <div class="chart-canvas-wrap"><canvas id="hourlyChart"></canvas></div>
+      </div>`;
+    destroyChart('hourly');
+    chartInstances.hourly = new Chart(document.getElementById('hourlyChart'), {
+      type: 'line',
+      data: {
+        labels: sorted.map(d => `${d.hour}時`),
+        datasets: [{
+          data: sorted.map(d => d.count),
+          borderColor: '#00d4ff', backgroundColor: 'rgba(0,212,255,0.08)',
+          fill: true, tension: 0.4, pointRadius: 4, pointHoverRadius: 6,
+          pointBackgroundColor: sorted.map(d => d.hour === peak?.hour ? '#ff6b35' : '#00d4ff')
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: '#64748b', font: { size: 11 } }, grid: { color: '#1e3a5f' } },
+          y: { ticks: { color: '#64748b' }, grid: { color: '#1e3a5f' } }
+        }
+      }
+    });
+  } catch(e) { errorState('hourlyContent', `載入失敗：${e.message}`); }
+}
+
+// ─── EQUIP × INJURY ──────────────────────────────────────────────
+async function loadEquipInjury() {
+  loading('equipInjuryContent');
+  try {
+    const data = await apiFetch(`/api/equipment-injury?${buildQS()}`);
+    const equips = [...new Set(data.map(d => d['保護裝備']))];
+    const injuries = [...new Set(data.map(d => d['主要傷處']))];
+    const datasets = injuries.map((inj, i) => ({
+      label: inj,
+      data: equips.map(eq => {
+        const found = data.find(d => d['保護裝備'] === eq && d['主要傷處'] === inj);
+        return found ? found.count : 0;
+      }),
+      backgroundColor: COLORS[i % COLORS.length],
+      borderRadius: 3,
+    }));
+    document.getElementById('equipInjuryContent').innerHTML = `
+      <div class="chart-wrap">
+        <div class="chart-title">保護裝備 × 主要傷處（Stacked Bar）</div>
+        <div class="chart-canvas-wrap" style="height:360px"><canvas id="equipInjuryChart"></canvas></div>
+      </div>`;
+    destroyChart('equipInjury');
+    chartInstances.equipInjury = new Chart(document.getElementById('equipInjuryChart'), {
+      type: 'bar',
+      data: { labels: equips, datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        scales: {
+          x: { stacked: true, ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#1e3a5f' } },
+          y: { stacked: true, ticks: { color: '#64748b' }, grid: { color: '#1e3a5f' } }
+        },
+        plugins: { legend: { position: 'bottom', labels: { color: '#64748b', font: { size: 10 }, boxWidth: 10 } } }
+      }
+    });
+  } catch(e) { errorState('equipInjuryContent', `載入失敗：${e.message}`); }
+}
+
+// ─── DRINKING × INJURY ───────────────────────────────────────────
+async function loadDrinkingInjury() {
+  loading('drinkingInjuryContent');
+  try {
+    const data = await apiFetch(`/api/drinking-injury?${buildQS()}`);
+    const drinks = [...new Set(data.map(d => d['飲酒情形']))];
+    const injuries = [...new Set(data.map(d => d['受傷程度']))];
+    const datasets = injuries.map((inj, i) => ({
+      label: inj,
+      data: drinks.map(dr => {
+        const found = data.find(d => d['飲酒情形'] === dr && d['受傷程度'] === inj);
+        return found ? found.count : 0;
+      }),
+      backgroundColor: COLORS[i % COLORS.length],
+      borderRadius: 3,
+    }));
+    document.getElementById('drinkingInjuryContent').innerHTML = `
+      <div class="chart-wrap">
+        <div class="chart-title">飲酒程度 × 受傷程度（Stacked Bar）</div>
+        <div class="chart-canvas-wrap" style="height:340px"><canvas id="drinkingInjuryChart"></canvas></div>
+      </div>`;
+    destroyChart('drinkingInjury');
+    chartInstances.drinkingInjury = new Chart(document.getElementById('drinkingInjuryChart'), {
+      type: 'bar',
+      data: { labels: drinks.map(d => d.length > 18 ? d.slice(0,18)+'…' : d), datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        scales: {
+          x: { stacked: true, ticks: { color: '#64748b', font: { size: 9 } }, grid: { color: '#1e3a5f' } },
+          y: { stacked: true, ticks: { color: '#64748b' }, grid: { color: '#1e3a5f' } }
+        },
+        plugins: { legend: { position: 'bottom', labels: { color: '#64748b', font: { size: 10 }, boxWidth: 10 } } }
+      }
+    });
+  } catch(e) { errorState('drinkingInjuryContent', `載入失敗：${e.message}`); }
+}
+
+// ─── WEATHER × LOCATION ───────────────────────────────────────────
+async function loadWeatherLoc() {
+  loading('weatherLocContent');
+  try {
+    const data = await apiFetch(`/api/weather-location?${buildQS()}`);
+    const weathers = [...new Set(data.map(d => d['天候']))];
+    const locations = [...new Set(data.map(d => d['事故位置']))];
+    const datasets = locations.slice(0,8).map((loc, i) => ({
+      label: loc,
+      data: weathers.map(w => {
+        const found = data.find(d => d['天候'] === w && d['事故位置'] === loc);
+        return found ? found.count : 0;
+      }),
+      backgroundColor: COLORS[i % COLORS.length],
+      borderRadius: 3,
+    }));
+    document.getElementById('weatherLocContent').innerHTML = `
+      <div class="chart-wrap">
+        <div class="chart-title">天候 × 事故位置（Grouped Bar，前8種位置）</div>
+        <div class="chart-canvas-wrap" style="height:360px"><canvas id="weatherLocChart"></canvas></div>
+      </div>`;
+    destroyChart('weatherLoc');
+    chartInstances.weatherLoc = new Chart(document.getElementById('weatherLocChart'), {
+      type: 'bar',
+      data: { labels: weathers, datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        scales: {
+          x: { ticks: { color: '#64748b', font: { size: 11 } }, grid: { color: '#1e3a5f' } },
+          y: { ticks: { color: '#64748b' }, grid: { color: '#1e3a5f' } }
+        },
+        plugins: { legend: { position: 'bottom', labels: { color: '#64748b', font: { size: 9 }, boxWidth: 10 } } }
+      }
+    });
+  } catch(e) { errorState('weatherLocContent', `載入失敗：${e.message}`); }
+}
+
+// ─── ROAD DEFECT ─────────────────────────────────────────────────
+async function loadRoadDefect() {
+  loading('roadDefectContent');
+  try {
+    const data = await apiFetch(`/api/road-defect-district?${buildQS()}`);
+    const districts = [...new Set(data.map(d => d['區']))].sort();
+    const defects = ['路面鬆軟', '隆起或凹陷不平', '有坑洞'];
+    const datasets = defects.map((def, i) => ({
+      label: def,
+      data: districts.map(dis => {
+        const found = data.find(d => d['區'] === dis && d['路面缺陷'] === def);
+        return found ? found.count : 0;
+      }),
+      backgroundColor: COLORS[i],
+      borderRadius: 3,
+    }));
+    const rows = districts.map(dis => {
+      const total = defects.reduce((s, def) => {
+        const f = data.find(d => d['區'] === dis && d['路面缺陷'] === def);
+        return s + (f ? f.count : 0);
+      }, 0);
+      const cells = defects.map(def => {
+        const f = data.find(d => d['區'] === dis && d['路面缺陷'] === def);
+        return `<td style="text-align:center;font-family:var(--font-mono)">${f ? f.count : 0}</td>`;
+      }).join('');
+      return `<tr><td>${dis}</td>${cells}<td style="text-align:center;font-weight:700;font-family:var(--font-mono);color:var(--accent2)">${total}</td></tr>`;
+    }).join('');
+    document.getElementById('roadDefectContent').innerHTML = `
+      <div class="chart-wrap">
+        <div class="chart-title">各區路面缺陷肇事次數</div>
+        <div class="chart-canvas-wrap" style="height:320px"><canvas id="roadDefectChart"></canvas></div>
+      </div>
+      <div class="data-table-wrap matrix-wrap">
+        <table class="matrix-table">
+          <thead><tr><th>行政區</th>${defects.map(d=>`<th>${d}</th>`).join('')}<th>合計</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+    destroyChart('roadDefect');
+    chartInstances.roadDefect = new Chart(document.getElementById('roadDefectChart'), {
+      type: 'bar',
+      data: { labels: districts, datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        scales: {
+          x: { stacked: true, ticks: { color: '#64748b', font: { size: 9 } }, grid: { color: '#1e3a5f' } },
+          y: { stacked: true, ticks: { color: '#64748b' }, grid: { color: '#1e3a5f' } }
+        },
+        plugins: { legend: { position: 'bottom', labels: { color: '#64748b', font: { size: 10 }, boxWidth: 10 } } }
+      }
+    });
+  } catch(e) { errorState('roadDefectContent', `載入失敗：${e.message}`); }
+}
+
+// ─── TIME × FACTOR ───────────────────────────────────────────────
+async function loadTimeFactor() {
+  loading('timeFactorContent');
+  try {
+    const data = await apiFetch(`/api/time-factor?${buildQS()}`);
+    const periods = [...new Set(data.map(d => d['時段']))];
+    const html = periods.map(period => {
+      const items = data.filter(d => d['時段'] === period).slice(0,5);
+      const maxCount = items[0]?.count || 1;
+      const rows = items.map((item, i) => `
+        <tr>
+          <td><span class="rank-badge rank-${i+1}">${i+1}</span></td>
+          <td style="font-size:0.82rem">${item['肇事因素主要']}</td>
+          <td>
+            <div style="display:flex;align-items:center;gap:0.5rem">
+              <div class="progress-bar-wrap" style="flex:1;min-width:60px">
+                <div class="progress-bar" style="width:${(item.count/maxCount*100).toFixed(1)}%;background:${COLORS[i]}"></div>
+              </div>
+              <span style="font-family:var(--font-mono);font-size:0.78rem;color:var(--text-muted)">${item.count}</span>
+            </div>
+          </td>
+        </tr>`).join('');
+      return `
+        <div class="chart-wrap" style="margin-bottom:1rem">
+          <div class="chart-title">${period}</div>
+          <div class="data-table-wrap"><table>
+            <thead><tr><th>#</th><th>肇事因素</th><th>次數</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table></div>
+        </div>`;
+    }).join('');
+    document.getElementById('timeFactorContent').innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:1rem">${html}</div>`;
+  } catch(e) { errorState('timeFactorContent', `載入失敗：${e.message}`); }
+}
+
+// ─── DRUNK RANK ──────────────────────────────────────────────────
+async function loadDrunkRank() {
+  loading('drunkRankContent');
+  try {
+    const data = await apiFetch(`/api/drunk-driving-district?${buildQS()}`);
+    const maxVal = data[0]?.count || 1;
+    const rows = data.map((d, i) => `
+      <tr>
+        <td><span class="rank-badge rank-${i+1}">${d.rank}</span></td>
+        <td>${d.district}</td>
+        <td style="width:240px">
+          <div style="display:flex;align-items:center;gap:0.5rem">
+            <div class="progress-bar-wrap" style="flex:1">
+              <div class="progress-bar" style="width:${(d.count/maxVal*100).toFixed(1)}%;background:${i<3?'var(--danger)':COLORS[i%10]}"></div>
+            </div>
+            <span style="font-family:var(--font-mono);font-size:0.8rem;color:var(--text-muted);min-width:40px;text-align:right">${d.count}</span>
+          </div>
+        </td>
+      </tr>`).join('');
+    document.getElementById('drunkRankContent').innerHTML = `
+      <div class="chart-wrap">
+        <div class="chart-title">各區酒駕肇事次數 Radar Chart</div>
+        <div class="chart-canvas-wrap" style="height:320px"><canvas id="drunkRankChart"></canvas></div>
+      </div>
+      <div class="data-table-wrap">
+        <table><thead><tr><th>名次</th><th>行政區</th><th>酒駕事故次數</th></tr></thead>
+        <tbody>${rows}</tbody></table>
+      </div>`;
+    destroyChart('drunkRank');
+    chartInstances.drunkRank = new Chart(document.getElementById('drunkRankChart'), {
+      type: 'radar',
+      data: {
+        labels: data.map(d => d.district),
+        datasets: [{
+          label: '酒駕次數',
+          data: data.map(d => d.count),
+          backgroundColor: 'rgba(239,68,68,0.15)',
+          borderColor: '#ef4444',
+          pointBackgroundColor: '#ef4444',
+          pointRadius: 3,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        scales: {
+          r: {
+            ticks: { color: '#64748b', font: { size: 9 }, backdropColor: 'transparent' },
+            grid: { color: '#1e3a5f' },
+            pointLabels: { color: '#94a3b8', font: { size: 9 } }
+          }
+        },
+        plugins: { legend: { display: false } }
+      }
+    });
+  } catch(e) { errorState('drunkRankContent', `載入失敗：${e.message}`); }
+}
+
+// ─── ENTER key on search ─────────────────────────────────────────
+document.getElementById('serialInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') searchAccident();
+});
+
+// ─── Init ─────────────────────────────────────────────────────────
+Chart.defaults.color = '#64748b';
+Chart.defaults.borderColor = '#1e3a5f';
+</script>
+</body>
+</html>

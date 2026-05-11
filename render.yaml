@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: taichung-accident-api
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --workers 2 --timeout 120
+    envVars:
+      - key: GITHUB_RAW_BASE
+        value: https://raw.githubusercontent.com/chien1120yc/TaichungAccident/main/data
+    healthCheckPath: /
