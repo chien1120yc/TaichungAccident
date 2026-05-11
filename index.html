@@ -126,61 +126,6 @@
   }
   select:focus, input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(0,212,255,0.15); }
 
-  /* ── Custom Multi-Select Dropdown ── */
-  .custom-select-wrapper { position: relative; }
-  .custom-select {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    color: var(--text);
-    padding: 0.4rem 0.7rem;
-    border-radius: 6px;
-    font-size: 0.85rem;
-    font-family: var(--font-main);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    min-width: 90px;
-    user-select: none;
-    transition: var(--transition);
-  }
-  .custom-select:hover { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(0,212,255,0.15); }
-  .select-arrow { font-size: 0.6rem; color: var(--text-muted); margin-left: 12px; transition: transform 0.2s; }
-  .select-options {
-    display: none; /* 預設隱藏 */
-    position: absolute;
-    top: calc(100% + 6px);
-    left: 0;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 0.6rem;
-    width: 200px;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.6);
-    z-index: 100;
-  }
-  .select-options.show { display: block; }
-  .months-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr); /* 3個一排的網格 */
-    gap: 4px;
-    margin-top: 4px;
-    padding-top: 6px;
-    border-top: 1px solid var(--border);
-  }
-  .option-item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 0.3rem 0.4rem;
-    font-size: 0.85rem;
-    cursor: pointer;
-    border-radius: 4px;
-    transition: background 0.2s;
-  }
-  .option-item:hover { background: rgba(0, 212, 255, 0.1); color: var(--accent); }
-  .option-item input { margin: 0; cursor: pointer; accent-color: var(--accent); }
-
   /* ── Main layout ── */
   .app { max-width: 1200px; margin: 0 auto; padding: 2rem; position: relative; z-index: 1; }
 
@@ -436,31 +381,13 @@
       </div>
       <div class="filter-group">
         <span class="filter-label">月份</span>
-        <div class="custom-select-wrapper" id="monthDropdown">
-          <div class="custom-select" onclick="toggleMonthDropdown()">
-            <div class="select-display" id="monthDisplay">全年</div>
-            <div class="select-arrow">▼</div>
-          </div>
-          <div class="select-options" id="monthOptions">
-            <label class="option-item" style="display:block; margin-bottom:4px">
-              <input type="checkbox" value="all" checked onchange="handleMonthChange(this)"> 全年
-            </label>
-            <div class="months-grid">
-              <label class="option-item"><input type="checkbox" value="1" onchange="handleMonthChange(this)"> 1月</label>
-              <label class="option-item"><input type="checkbox" value="2" onchange="handleMonthChange(this)"> 2月</label>
-              <label class="option-item"><input type="checkbox" value="3" onchange="handleMonthChange(this)"> 3月</label>
-              <label class="option-item"><input type="checkbox" value="4" onchange="handleMonthChange(this)"> 4月</label>
-              <label class="option-item"><input type="checkbox" value="5" onchange="handleMonthChange(this)"> 5月</label>
-              <label class="option-item"><input type="checkbox" value="6" onchange="handleMonthChange(this)"> 6月</label>
-              <label class="option-item"><input type="checkbox" value="7" onchange="handleMonthChange(this)"> 7月</label>
-              <label class="option-item"><input type="checkbox" value="8" onchange="handleMonthChange(this)"> 8月</label>
-              <label class="option-item"><input type="checkbox" value="9" onchange="handleMonthChange(this)"> 9月</label>
-              <label class="option-item"><input type="checkbox" value="10" onchange="handleMonthChange(this)"> 10月</label>
-              <label class="option-item"><input type="checkbox" value="11" onchange="handleMonthChange(this)"> 11月</label>
-              <label class="option-item"><input type="checkbox" value="12" onchange="handleMonthChange(this)"> 12月</label>
-            </div>
-          </div>
-        </div>
+        <select id="monthSelect" multiple style="height:auto;min-width:90px">
+          <option value="all" selected>全年</option>
+          <option value="1">1月</option><option value="2">2月</option><option value="3">3月</option>
+          <option value="4">4月</option><option value="5">5月</option><option value="6">6月</option>
+          <option value="7">7月</option><option value="8">8月</option><option value="9">9月</option>
+          <option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
+        </select>
       </div>
       <div class="role-tabs">
         <button class="role-tab active" onclick="setRole('public')">一般民眾</button>
@@ -680,76 +607,17 @@ let currentView = 'search';
 const chartInstances = {};
 
 // ─── HELPERS ─────────────────────────────────────────────────────
-// ─── 替換原本的 getFilters 函數 ─────────────────────────────────────
 function getFilters() {
   const year = document.getElementById('yearSelect').value;
-  // 改為抓取自訂選單中有打勾的 checkbox
-  const checkedBoxes = Array.from(document.querySelectorAll('#monthOptions input:checked')).map(cb => cb.value);
+  const monthSel = document.getElementById('monthSelect');
+  const selected = [...monthSel.selectedOptions].map(o => o.value);
   let months;
-  if (checkedBoxes.includes('all') || checkedBoxes.length === 0) {
+  if (selected.includes('all') || selected.length === 0) {
     months = '';
   } else {
-    months = checkedBoxes.join(',');
+    months = selected.join(',');
   }
   return { year, months };
-}
-
-// ─── 新增自訂選單的互動邏輯 ──────────────────────────────────────────
-function toggleMonthDropdown() {
-  const options = document.getElementById('monthOptions');
-  const arrow = document.querySelector('.select-arrow');
-  options.classList.toggle('show');
-  arrow.style.transform = options.classList.contains('show') ? 'rotate(180deg)' : 'rotate(0deg)';
-}
-
-// 點擊選單外部時，自動關閉選單
-document.addEventListener('click', function(event) {
-  const dropdown = document.getElementById('monthDropdown');
-  if (dropdown && !dropdown.contains(event.target)) {
-    document.getElementById('monthOptions').classList.remove('show');
-    document.querySelector('.select-arrow').style.transform = 'rotate(0deg)';
-  }
-});
-
-// 處理打勾/取消打勾的邏輯
-function handleMonthChange(checkbox) {
-  const allBox = document.querySelector('#monthOptions input[value="all"]');
-  const monthBoxes = Array.from(document.querySelectorAll('#monthOptions input:not([value="all"])'));
-
-  if (checkbox.value === 'all' && checkbox.checked) {
-    // 如果勾了「全年」，就把 1~12 月的勾勾取消
-    monthBoxes.forEach(cb => cb.checked = false);
-  } else if (checkbox.checked) {
-    // 如果勾了個別月份，就把「全年」的勾勾取消
-    allBox.checked = false;
-  }
-
-  // 如果全部都取消勾選了，預設跳回「全年」
-  const checkedBoxes = document.querySelectorAll('#monthOptions input:checked');
-  if (checkedBoxes.length === 0) {
-    allBox.checked = true;
-  }
-
-  updateMonthDisplay();
-}
-
-// 更新選單按鈕上顯示的文字
-function updateMonthDisplay() {
-  const checkedBoxes = Array.from(document.querySelectorAll('#monthOptions input:checked'));
-  const display = document.getElementById('monthDisplay');
-
-  if (checkedBoxes.some(cb => cb.value === 'all')) {
-    display.textContent = '全年';
-  } else {
-    const texts = checkedBoxes.map(cb => cb.parentElement.textContent.trim());
-    if (texts.length <= 2) {
-      // 只有 1~2 個月時，顯示如 "1月, 2月"
-      display.textContent = texts.join(', ');
-    } else {
-      // 超過 2 個月時，顯示如 "已選 3 個月"
-      display.textContent = `已選 ${texts.length} 個月`;
-    }
-  }
 }
 
 function buildQS() {
