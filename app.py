@@ -64,7 +64,7 @@ GITHUB_RAW_BASE = os.environ.get(
     "https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/data"
 )
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-LOCAL_DATA_DIR = os.environ.get("LOCAL_DATA_DIR", os.path.join(BASE_DIR, "..", "data"))
+LOCAL_DATA_DIR = os.environ.get("LOCAL_DATA_DIR", os.path.join(BASE_DIR, "data"))
 
 _cache = {}
 _cache_time = {}
@@ -76,32 +76,40 @@ def fetch_csv_from_github(filename: str):
     if cache_key in _cache and (now - _cache_time.get(cache_key, 0)) < CACHE_TTL:
         return _cache[cache_key]
 
+    # 1. 優先從本地 (Render 伺服器內部) 讀取，速度最快！
     if LOCAL_DATA_DIR:
         filepath = os.path.join(LOCAL_DATA_DIR, filename)
-        if not os.path.exists(filepath):
-            return None
-        df = pd.read_csv(
-            filepath,
-            dtype=str,
-            encoding='utf-8-sig',
-            on_bad_lines='skip',
-            engine='python'          # ← 加這行
-        )
-        df.columns = df.columns.str.strip().str.replace('\ufeff', '')
-        df = df.fillna("")
-        _cache[cache_key] = df
-        _cache_time[cache_key] = now
-        return df
+        if os.path.exists(filepath):
+            try:
+                # 先嘗試用 UTF-8 讀取
+                df = pd.read_csv(filepath, dtype=str, encoding='utf-8-sig', on_bad_lines='skip', engine='python')
+            except UnicodeDecodeError:
+                # 萬一政府檔案是舊版的 Big5 編碼，自動切換！
+                df = pd.read_csv(filepath, dtype=str, encoding='big5', on_bad_lines='skip', engine='python')
+            
+            df.columns = df.columns.str.strip().str.replace('\ufeff', '')
+            df = df.fillna("")  # 防止 NaN 破壞 JSON
+            _cache[cache_key] = df
+            _cache_time[cache_key] = now
+            return df
 
-    # 遠端模式（GitHub）
+    # 2. 遠端模式（如果本地真的找不到檔案的備案）
     url = f"{GITHUB_RAW_BASE}/{filename}"
+    print(f"嘗試遠端下載：{url}")
     try:
         resp = requests.get(url, timeout=10)
         if resp.status_code != 200:
             return None
-        content = resp.content.decode("utf-8-sig")
+        
+        # 遠端下載也要防禦 Big5 編碼
+        try:
+            content = resp.content.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            content = resp.content.decode("big5", errors="replace")
+            
         df = pd.read_csv(io.StringIO(content), dtype=str, on_bad_lines='skip')
         df.columns = df.columns.str.strip().str.replace('\ufeff', '')
+        df = df.fillna("")
         _cache[cache_key] = df
         _cache_time[cache_key] = now
         return df
