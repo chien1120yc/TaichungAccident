@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 import pandas as pd
 import requests
@@ -148,9 +148,22 @@ def map_col(df: pd.DataFrame, col: str, mapping: dict) -> pd.DataFrame:
     )
     return df
 
-# ─── Health check ──────────────────────────────────────────────
+# ─── 前端靜態檔案 ──────────────────────────────────────────────
 @app.route("/")
 def index():
+    return send_from_directory(BASE_DIR, "index.html")
+
+@app.route("/style.css")
+def serve_css():
+    return send_from_directory(BASE_DIR, "style.css")
+
+@app.route("/app.js")
+def serve_js():
+    return send_from_directory(BASE_DIR, "app.js")
+
+# ─── Health check ──────────────────────────────────────────────
+@app.route("/api/health")
+def health():
     return jsonify({"status": "ok", "message": "台中市交通事故查詢 API"})
 
 # ─── 共用：各區事故頻率 ─────────────────────────────────────────
@@ -234,6 +247,70 @@ def search_accident():
             row[field] = mapping.get(str(row[field]), row[field])
     return jsonify({"found": True, "data": row})
 
+# ─── 共用：多條件查詢 ────────────────────────────────────────────
+@app.route("/api/search-multi")
+def search_multi():
+    year, months = parse_params()
+    district   = request.args.get("district", "").strip()
+    cause_code = request.args.get("cause", "").strip()
+    injury     = request.args.get("injury", "").strip()
+    page       = int(request.args.get("page", 1))
+    per_page   = int(request.args.get("per_page", 20))
+
+    df = load_all_csvs(year, months)
+    if df.empty:
+        return jsonify({"error": "無法載入資料"}), 500
+
+    if district and "區" in df.columns:
+        df = df[df["區"].astype(str).str.strip() == district]
+    if cause_code and "肇事因素主要" in df.columns:
+        df = df[df["肇事因素主要"].astype(str).str.strip() == cause_code]
+    if injury and "受傷程度" in df.columns:
+        df = df[df["受傷程度"].astype(str).str.strip() == injury]
+
+    total = len(df)
+    df_page = df.iloc[(page-1)*per_page : page*per_page].copy()
+
+    mappings = {
+        "天候": CLIMAT_DICT, "事故位置": ACCIDENT_LOCATION_DICT,
+        "事故類型及型態": ACCIDENT_TYPE_DICT, "肇事因素主要": CAUSING_FACTOR_DICT,
+        "受傷程度": INJURY_DEGREE_DICT, "主要傷處": MAIN_INJURY_DICT,
+        "保護裝備": PROTECTIVE_EQUIPMENT_DICT, "飲酒情形": DRINKING_SITUATION_DICT,
+        "道路類別": ROAD_CATEGORY_DICT, "道路型態": ROAD_TYPE_DICT,
+    }
+    for field, mapping in mappings.items():
+        if field in df_page.columns:
+            df_page = map_col(df_page, field, mapping)
+
+    df_page = df_page.where(df_page.notna(), other=None)
+    records = df_page.to_dict(orient="records")
+    return jsonify({"total": total, "page": page, "per_page": per_page, "data": records})
+
+# ─── 共用：查詢用下拉選項 ───────────────────────────────────────
+@app.route("/api/filter-options")
+def filter_options():
+    year, months = parse_params()
+    df = load_all_csvs(year, months)
+    if df.empty:
+        return jsonify({"error": "無法載入資料"}), 500
+
+    districts = sorted(df["區"].dropna().astype(str).unique().tolist()) if "區" in df.columns else []
+    districts = [d for d in districts if d not in ("", "nan")]
+
+    causes_raw = df["肇事因素主要"].dropna().astype(str).unique().tolist() if "肇事因素主要" in df.columns else []
+    causes = sorted(
+        [{"code": c, "label": CAUSING_FACTOR_DICT.get(c, c)} for c in causes_raw if c not in ("", "nan")],
+        key=lambda x: int(x["code"]) if x["code"].isdigit() else 9999
+    )
+
+    injury_raw = df["受傷程度"].dropna().astype(str).unique().tolist() if "受傷程度" in df.columns else []
+    injuries = sorted(
+        [{"code": c, "label": INJURY_DEGREE_DICT.get(c, c)} for c in injury_raw if c not in ("", "nan")],
+        key=lambda x: int(x["code"]) if x["code"].isdigit() else 9999
+    )
+
+    return jsonify({"districts": districts, "causes": causes, "injuries": injuries})
+
 # ─── 公家機關：保護裝備 × 主要傷處 ─────────────────────────────
 @app.route("/api/equipment-injury")
 def equipment_injury():
@@ -246,7 +323,8 @@ def equipment_injury():
     df = map_col(df, "保護裝備", PROTECTIVE_EQUIPMENT_DICT)
     df = map_col(df, "主要傷處", MAIN_INJURY_DICT)
     pivot = df.groupby(["保護裝備", "主要傷處"]).size().reset_index(name="count")
-    pivot = pivot[pivot["保護裝備"] != "nan"][pivot["主要傷處"] != "nan"]
+    pivot = pivot[~pivot["保護裝備"].isin(["nan","","不明"])]
+    pivot = pivot[~pivot["主要傷處"].isin(["nan",""])]
     return jsonify(pivot.to_dict(orient="records"))
 
 # ─── 公家機關：飲酒程度 × 受傷程度 ─────────────────────────────
@@ -261,7 +339,8 @@ def drinking_injury():
     df = map_col(df, "飲酒情形", DRINKING_SITUATION_DICT)
     df = map_col(df, "受傷程度", INJURY_DEGREE_DICT)
     pivot = df.groupby(["飲酒情形", "受傷程度"]).size().reset_index(name="count")
-    pivot = pivot[pivot["飲酒情形"] != "nan"][pivot["受傷程度"] != "nan"]
+    pivot = pivot[~pivot["飲酒情形"].isin(["nan",""])]
+    pivot = pivot[~pivot["受傷程度"].isin(["nan",""])]
     return jsonify(pivot.to_dict(orient="records"))
 
 # ─── 公家機關：天候 × 事故位置 ──────────────────────────────────
@@ -276,7 +355,8 @@ def weather_location():
     df = map_col(df, "天候", CLIMAT_DICT)
     df = map_col(df, "事故位置", ACCIDENT_LOCATION_DICT)
     pivot = df.groupby(["天候", "事故位置"]).size().reset_index(name="count")
-    pivot = pivot[pivot["天候"] != "nan"][pivot["事故位置"] != "nan"]
+    pivot = pivot[~pivot["天候"].isin(["nan",""])]
+    pivot = pivot[~pivot["事故位置"].isin(["nan",""])]
     return jsonify(pivot.to_dict(orient="records"))
 
 # ─── 公家機關：各區路面缺陷肇事 ──────────────────────────────────
@@ -292,7 +372,7 @@ def road_defect_district():
     df = map_col(df, "路面缺陷", ROAD_DEFECT_DICT)
     defects = df[df["路面缺陷"].isin(["路面鬆軟", "隆起或凹陷不平", "有坑洞"])]
     pivot = defects.groupby(["區", "路面缺陷"]).size().reset_index(name="count")
-    pivot = pivot[pivot["區"] != "nan"]
+    pivot = pivot[~pivot["區"].isin(["nan",""])]
     return jsonify(pivot.to_dict(orient="records"))
 
 # ─── 公家機關：時段 × 主要肇因 ───────────────────────────────────
